@@ -2,14 +2,14 @@ import gradio as gr
 import fitz  # PyMuPDF
 from huggingface_hub import InferenceClient
 
-API_KEY = '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'
+API_KEY = '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'
 
 client = InferenceClient(
     "meta-llama/Meta-Llama-3-8B-Instruct",
     token=API_KEY
 )
 
-def get_completion(prompt, max_length=1000):
+def get_completion(prompt, max_length=4096):
     try:
         response = client.text_generation(
             prompt,
@@ -48,7 +48,7 @@ def analyze_blood_test(file):
             return "Erro: O arquivo não parece ser um exame de sangue válido."
 
         # Limitar o tamanho do texto do exame
-        max_exam_chars = 2000
+        max_exam_chars = 5000
         truncated_text = text[:max_exam_chars] + ("..." if len(text) > max_exam_chars else "")
 
         prompt = f"""
@@ -61,7 +61,7 @@ def analyze_blood_test(file):
 
         Sua análise:"""
 
-        analysis = get_completion(prompt, max_length=1000)
+        analysis = get_completion(prompt, max_length=4096)
         
         # Processar a resposta para garantir que ela seja útil e não transcreva o exame
         if "Sua análise:" in analysis:
@@ -80,7 +80,7 @@ iface = gr.Interface(
     inputs=inputs, 
     outputs=outputs, 
     title="Análise de Exame de Sangue", 
-    description="Envie um exame de sangue em formato PDF ou texto para obter uma análise resumida."
+    description="Envie um exame de sangue em formato PDF ou texto para obter uma análise detalhada."
 )
 
 iface.launch()
