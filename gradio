@@ -1,0 +1,86 @@
+import gradio as gr
+import fitz  # PyMuPDF
+from huggingface_hub import InferenceClient
+
+API_KEY = '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'
+
+client = InferenceClient(
+    "meta-llama/Meta-Llama-3-8B-Instruct",
+    token=API_KEY
+)
+
+def get_completion(prompt, max_length=1000):
+    try:
+        response = client.text_generation(
+            prompt,
+            max_new_tokens=max_length,
+            temperature=0.7,
+            top_p=0.95,
+        )
+        return response
+    except Exception as err:
+        print(f"Erro ao obter a resposta da API: {err}")
+        return f"Erro ao obter a resposta da API: {err}"
+
+def extract_text_from_pdf(file_path):
+    try:
+        doc = fitz.open(file_path)
+        text = ""
+        for page_num in range(len(doc)):
+            page = doc.load_page(page_num)
+            text += page.get_text()
+        return text
+    except Exception as e:
+        print(f"Erro ao extrair texto do PDF: {e}")
+        return f"Erro ao extrair texto do PDF: {str(e)}"
+
+def analyze_blood_test(file):
+    try:
+        if file.name.endswith('.pdf'):
+            text = extract_text_from_pdf(file.name)
+        else:
+            text = file.read().decode('utf-8')
+        
+        if not text.strip():
+            return "Erro: O arquivo está vazio ou não foi possível extrair texto."
+
+        if "hemoglobina" not in text.lower() and "glóbulos brancos" not in text.lower():
+            return "Erro: O arquivo não parece ser um exame de sangue válido."
+
+        # Limitar o tamanho do texto do exame
+        max_exam_chars = 2000
+        truncated_text = text[:max_exam_chars] + ("..." if len(text) > max_exam_chars else "")
+
+        prompt = f"""
+        Você é um especialista médico analisando um exame de sangue. Com base nos resultados fornecidos abaixo, forneça uma análise detalhada e insights médicos.
+        Concentre-se em fornecer uma interpretação geral, identificar quaisquer anomalias significativas, explicar suas implicações para a saúde do paciente e sugerir possíveis próximos passos ou áreas de preocupação.
+        Seja detalhado e abrangente em sua análise.
+
+        Exame de sangue:
+        {truncated_text}
+
+        Sua análise:"""
+
+        analysis = get_completion(prompt, max_length=1000)
+        
+        # Processar a resposta para garantir que ela seja útil e não transcreva o exame
+        if "Sua análise:" in analysis:
+            analysis = analysis.split("Sua análise:")[-1].strip()
+        
+        return analysis
+    except Exception as e:
+        print(f"Erro ao processar o arquivo: {e}")
+        return f"Erro ao processar o arquivo: {str(e)}"
+
+inputs = gr.File(file_count="single", type="filepath", label="Envie o exame de sangue (PDF ou texto)")
+outputs = gr.Textbox(label="Análise do Exame de Sangue")
+
+iface = gr.Interface(
+    fn=analyze_blood_test, 
+    inputs=inputs, 
+    outputs=outputs, 
+    title="Análise de Exame de Sangue", 
+    description="Envie um exame de sangue em formato PDF ou texto para obter uma análise resumida."
+)
+
+iface.launch()
